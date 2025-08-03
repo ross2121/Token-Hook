@@ -3,13 +3,17 @@ use anchor_lang::{
     system_program::{create_account, CreateAccount},
 };
 use anchor_spl::{
-    associated_token::AssociatedToken, token_2022::Token2022, token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked,transfer_checked}
+    associated_token::AssociatedToken, 
+    token_2022::Token2022,
+    token_interface::{Mint, TokenAccount, TokenInterface, TransferChecked,transfer_checked}
 };
+
 use spl_tlv_account_resolution::{
     account::ExtraAccountMeta, seeds::Seed, state::ExtraAccountMetaList,
 };
 use spl_transfer_hook_interface::instruction::{ExecuteInstruction, TransferHookInstruction};
 declare_id!("6EfhjRgXRRnvzLaxcDbyCd5zQaKNrDLrhHcsbQgwkJjt");
+
 #[program]
 pub mod transfer_hook {
     use super::*;
@@ -48,20 +52,19 @@ ExtraAccountMeta::new_with_seeds(
 
     pub fn transfer_hook(ctx: Context<TransferHook>, amount: u64) -> Result<()> {
         let signer_Seed:& [ & [ & [ u8 ]]] =&[&[b"delegate",&[ctx.bumps.delegate]]];
-        transfer_checked (
-            CpiContext :: new (
-                ctx . accounts . token_program . to_account_info (),
-                TransferChecked  {
-                    from :  ctx . accounts . sender_wsol_token_account . to_account_info (),
-                    mint :  ctx . accounts . wsol_mint . to_account_info (),
-                    to :  ctx . accounts . delegate_wsol_token_account . to_account_info (),
-                    authority :  ctx . accounts . delegate . to_account_info (),
-                },
-            )
-            . with_signer (signer_Seed),
-            amount,
-            ctx . accounts . wsol_mint . decimals
-        ) ? ;
+        
+        let cpi_accounts = TransferChecked {
+            from: ctx.accounts.sender_wsol_token_account.to_account_info(),
+            mint: ctx.accounts.wsol_mint.to_account_info(),
+            to: ctx.accounts.delegate_wsol_token_account.to_account_info(),
+            authority: ctx.accounts.delegate.to_account_info(),
+        };
+        
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts).with_signer(signer_Seed);
+        
+        transfer_checked(cpi_ctx, amount, ctx.accounts.wsol_mint.decimals)?;
+        
         Ok(())
     }
 
@@ -91,11 +94,12 @@ pub fn fallback<'info>(
 pub struct InitializeExtraAccountMetaList<'info> {
     #[account(mut)]
     pub payer:Signer<'info>,
+    /// CHECK: ExtraAccountMetaList Account for storing transfer hook metadata
     #[account(mut,seeds=[b"extra-account-metas",mint.key().as_ref()],bump)]
     pub extra_account_meta_list:AccountInfo<'info>,
     pub mint:InterfaceAccount<'info,Mint>,
     pub wsol_mint:InterfaceAccount<'info,Mint>,
-    pub token_program:Program<'info,Token2022>,
+    pub token_program:Interface<'info,TokenInterface>,
     pub associated_token_program:Program<'info,AssociatedToken>,
     pub system_program:Program<'info,System>
 }
@@ -121,7 +125,7 @@ pub struct TransferHook<'info> {
     )]
     pub extra_account_meta_list: UncheckedAccount<'info>,
     pub wsol_mint: InterfaceAccount<'info, Mint>,
-    pub token_program: Interface<'info, TokenInterface>,
+    pub token_program: Interface<'info,TokenInterface>,
     pub associated_token_program: Program<'info, AssociatedToken>,
     #[account(
         seeds = [b"delegate"],
