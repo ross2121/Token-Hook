@@ -22,6 +22,10 @@ custom-panic = []
 
 [dependencies]
 anchor-lang = "0.31.1"
+anchor-spl = "0.31.1"
+spl-tlv-account-resolution = "0.10.0"
+spl-token-2022 = "9.0.0"
+spl-transfer-hook-interface = "0.10.0"
 
 
 [lints.rust]
